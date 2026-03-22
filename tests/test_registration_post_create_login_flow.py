@@ -52,6 +52,13 @@ class TrackingRegistrationEngine(RegistrationEngine):
         self.validated_codes = []
         self.auth_url_checks = 0
 
+    def _pop_test_otp_code(self, stage):
+        if not self.codes_to_return:
+            raise AssertionError(f"test setup exhausted OTP codes during {stage}")
+        code = self.codes_to_return.pop(0)
+        self.events.append(f"get_otp:{code}")
+        return code
+
     def _check_ip_location(self):
         self.events.append("check_ip_location")
         return True, "US"
@@ -100,9 +107,7 @@ class TrackingRegistrationEngine(RegistrationEngine):
         return True
 
     def _get_verification_code(self):
-        code = self.codes_to_return.pop(0)
-        self.events.append(f"get_otp:{code}")
-        return code
+        return self._pop_test_otp_code("signup OTP retrieval")
 
     def _validate_verification_code(self, code):
         self.validated_codes.append(code)
@@ -114,8 +119,7 @@ class TrackingRegistrationEngine(RegistrationEngine):
         return True
 
     def _advance_login_authorization(self):
-        code = self.codes_to_return.pop(0)
-        self.events.append(f"get_otp:{code}")
+        code = self._pop_test_otp_code("login OTP retrieval")
         self.validated_codes.append(code)
         self.events.append(f"validate_otp:{code}")
         self.events.append("advance_login_authorization")
@@ -180,3 +184,27 @@ def test_new_account_restarts_login_otp_flow_after_create_account():
         "advance_login_authorization",
         "handle_oauth_callback",
     ]
+
+
+def test_tracking_registration_engine_fails_clearly_when_signup_otp_pool_is_exhausted():
+    engine = TrackingRegistrationEngine()
+    engine.codes_to_return = []
+
+    try:
+        engine._get_verification_code()
+    except AssertionError as exc:
+        assert str(exc) == "test setup exhausted OTP codes during signup OTP retrieval"
+    else:
+        raise AssertionError("expected a clear assertion when signup OTP codes run out")
+
+
+def test_tracking_registration_engine_fails_clearly_when_login_otp_pool_is_exhausted():
+    engine = TrackingRegistrationEngine()
+    engine.codes_to_return = []
+
+    try:
+        engine._advance_login_authorization()
+    except AssertionError as exc:
+        assert str(exc) == "test setup exhausted OTP codes during login OTP retrieval"
+    else:
+        raise AssertionError("expected a clear assertion when login OTP codes run out")
