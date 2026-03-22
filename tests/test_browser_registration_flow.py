@@ -194,3 +194,19 @@ def test_save_to_database_persists_browser_cookies(monkeypatch):
 
     assert engine.save_to_database(result) is True
     assert captured["cookies"].startswith("oai-did=device-1")
+
+
+def test_execution_mode_http_override_skips_browser_mode(monkeypatch):
+    engine = _make_engine(monkeypatch)
+    engine.execution_mode = "curl_cffi"
+
+    assert engine._is_browser_mode() is False
+
+
+def test_execution_mode_playwright_override_forces_browser_mode(monkeypatch):
+    settings = SimpleNamespace(**vars(_browser_settings()))
+    settings.registration_mode = "http"
+    engine = _make_engine(monkeypatch, settings=settings)
+    engine.execution_mode = "playwright"
+
+    assert engine._is_browser_mode() is True

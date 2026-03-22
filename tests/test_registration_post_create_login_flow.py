@@ -50,6 +50,7 @@ class TrackingRegistrationEngine(RegistrationEngine):
         self.sent_otp_count = 0
         self.codes_to_return = ["111111", "222222"]
         self.validated_codes = []
+        self.auth_url_checks = 0
 
     def _check_ip_location(self):
         self.events.append("check_ip_location")
@@ -112,6 +113,22 @@ class TrackingRegistrationEngine(RegistrationEngine):
         self.events.append("create_user_account")
         return True
 
+    def _advance_login_authorization(self):
+        code = self.codes_to_return.pop(0)
+        self.events.append(f"get_otp:{code}")
+        self.validated_codes.append(code)
+        self.events.append(f"validate_otp:{code}")
+        self.events.append("advance_login_authorization")
+        return "workspace-id", "http://localhost:1455/auth/callback?code=code&state=state"
+
+    def _try_reenter_login_flow(self):
+        self.events.append("try_reenter_login_flow")
+        return True
+
+    def _submit_login_password_step(self):
+        self.events.append("submit_login_password_step")
+        return True
+
     def _get_workspace_id(self):
         self.events.append("get_workspace_id")
         return "workspace-id"
@@ -143,7 +160,7 @@ def test_new_account_restarts_login_otp_flow_after_create_account():
     assert result.source == "register"
     assert result.password == "generated-password"
     assert result.session_token == "session-token"
-    assert engine.sent_otp_count == 2
+    assert engine.sent_otp_count == 1
     assert engine.validated_codes == ["111111", "222222"]
     assert engine.events == [
         "check_ip_location",
@@ -158,11 +175,8 @@ def test_new_account_restarts_login_otp_flow_after_create_account():
         "get_otp:111111",
         "validate_otp:111111",
         "create_user_account",
-        "send_otp:2:https://auth.openai.com/email-verification",
         "get_otp:222222",
         "validate_otp:222222",
-        "get_workspace_id",
-        "select_workspace:workspace-id",
-        "follow_redirects",
+        "advance_login_authorization",
         "handle_oauth_callback",
     ]
